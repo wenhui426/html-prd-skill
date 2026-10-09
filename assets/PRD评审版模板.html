@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="zh-CN" data-review-layout="{{REVIEW_LAYOUT}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{DOCUMENT_TITLE}}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef2f7;
+      --panel: #ffffff;
+      --line: #d9e0e9;
+      --text: #172033;
+      --muted: #667085;
+      --brand: #2457d6;
+      --brand-soft: #e9efff;
+      --warning: #a15c00;
+      --warning-soft: #fff4df;
+      --note-width: 40%;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--text); background: var(--bg); }
+    button { font: inherit; }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 14px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar h1 { margin: 0; font-size: 18px; }
+    .summary { color: var(--muted); font-size: 13px; }
+    .topbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .layout-button {
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .layout-button:hover { background: var(--brand-soft); }
+
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(420px, 1fr) 10px var(--note-width);
+      gap: 0;
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .prototype,
+    .notes {
+      min-width: 0;
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .prototype {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      border-radius: 12px 0 0 12px;
+    }
+
+    .resizer {
+      background: #e0e8f2;
+      cursor: col-resize;
+      position: relative;
+    }
+    .resizer::after {
+      content: "⋮";
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #557097;
+      font-size: 22px;
+    }
+    .resizer:hover { background: #b7cbf0; }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-columns: 170px minmax(0, 1fr);
+      border-left: 0;
+      border-radius: 0 12px 12px 0;
+    }
+    .notes-head {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 45px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .drawer-toggle, .drawer-close, .backdrop { display: none; }
+
+    .notes nav {
+      padding: 12px;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    .notes nav button {
+      width: 100%;
+      margin: 0 0 8px;
+      padding: 10px 12px;
+      text-align: left;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .notes nav button:hover { background: #f0f3f8; }
+    .notes nav button[aria-current="page"] {
+      color: var(--brand);
+      background: var(--brand-soft);
+      border-color: #cbd8ff;
+      font-weight: 700;
+    }
+
+    .note-content { overflow: auto; padding: 18px 22px 40px; }
+    .note-panel { display: none; }
+    .note-panel.active { display: block; }
+    .note-panel h2 { margin-top: 0; }
+    .note-panel h3 { margin: 24px 0 8px; font-size: 15px; }
+    .note-panel p, .note-panel li { line-height: 1.7; }
+    .unmapped-note { display: none; color: var(--muted); line-height: 1.7; }
+    .unmapped-note.active { display: block; }
+    .note-panel table { width: 100%; border-collapse: collapse; }
+    .note-panel th, .note-panel td {
+      padding: 9px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--brand);
+      background: var(--brand-soft);
+    }
+
+    .badge.pending { color: var(--warning); background: var(--warning-soft); }
+
+    .limit-note {
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      color: var(--muted);
+      background: #f8fafc;
+      border-left: 3px solid var(--line);
+    }
+
+    html[data-review-layout="drawer"] .workspace { grid-template-columns: minmax(0, 1fr); }
+    html[data-review-layout="drawer"] .prototype { border-radius: 12px; }
+    html[data-review-layout="drawer"] .resizer,
+    html[data-review-layout="drawer"] .width-preset { display: none; }
+    html[data-review-layout="drawer"] .drawer-toggle,
+    html[data-review-layout="drawer"] .drawer-close { display: inline-block; }
+    html[data-review-layout="drawer"] .notes {
+      position: absolute;
+      top: 12px; right: 12px; bottom: 12px;
+      width: min(520px, calc(100% - 24px));
+      grid-template-columns: 145px minmax(0, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: -18px 0 45px #20304924;
+      transform: translateX(calc(100% + 24px));
+      visibility: hidden;
+      transition: transform .22s ease, visibility .22s;
+      z-index: 2;
+    }
+    html[data-review-layout="drawer"].drawer-open .notes {
+      transform: translateX(0);
+      visibility: visible;
+    }
+    html[data-review-layout="drawer"].drawer-open .backdrop {
+      display: block;
+      position: absolute;
+      inset: 12px;
+      border-radius: 12px;
+      background: #192a4740;
+      z-index: 1;
+    }
+
+    @media (max-width: 900px) {
+      html[data-review-layout="parallel"] .workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(300px, 55%) minmax(250px, 45%);
+      }
+      html[data-review-layout="parallel"] .prototype { border-radius: 12px 12px 0 0; }
+      html[data-review-layout="parallel"] .notes {
+        border-left: 1px solid var(--line);
+        border-radius: 0 0 12px 12px;
+      }
+      html[data-review-layout="parallel"] .resizer { display: none; }
+      html[data-review-layout="parallel"] .width-preset { display: none; }
+      .notes { grid-template-columns: 140px minmax(0, 1fr); }
+    }
+
+    @media (max-width: 620px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .workspace { padding: 8px; }
+      .notes { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); }
+      html[data-review-layout="drawer"] .notes {
+        top: 8px; right: 8px; bottom: 8px;
+        width: calc(100% - 16px);
+        grid-template-columns: 1fr;
+      }
+      html[data-review-layout="drawer"].drawer-open .backdrop { inset: 8px; }
+      .notes nav {
+        display: flex;
+        gap: 8px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .notes nav button { width: auto; white-space: nowrap; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>{{DOCUMENT_TITLE}}</h1>
+      <div class="topbar-actions">
+        <span class="summary">{{CONFIRMED_COUNT}} 页已确认 · {{PENDING_COUNT}} 项待确认</span>
+        <button type="button" class="layout-button width-preset" data-note-width="30%">原型优先 70/30</button>
+        <button type="button" class="layout-button width-preset" data-note-width="40%">均衡 60/40</button>
+        <button type="button" class="layout-button width-preset" data-note-width="50%">说明优先 50/50</button>
+        <button type="button" class="layout-button drawer-toggle" id="drawer-toggle" aria-expanded="false" aria-controls="review-notes">查看页面说明</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="prototype" aria-label="原交互页面">
+        <div class="panel-head">
+          <strong>原交互页面</strong>
+          <span id="current-page-name">{{FIRST_PAGE_NAME}}</span>
+        </div>
+        <iframe id="prototype-frame" title="原交互页面" src="{{FIRST_PAGE_SOURCE}}"></iframe>
+      </section>
+      <div class="resizer" id="resizer" role="separator" tabindex="0" aria-label="拖动调整页面说明宽度" aria-orientation="vertical"></div>
+      <div class="backdrop" id="backdrop"></div>
+
+      <aside class="notes" id="review-notes" aria-label="页面说明">
+        <div class="notes-head"><strong>页面说明</strong><button type="button" class="layout-button drawer-close" id="drawer-close">关闭</button></div>
+        <nav aria-label="评审页备用目录">{{PAGE_NAV_ITEMS}}</nav>
+        <div class="note-content">
+          <p class="unmapped-note" id="unmapped-note" role="status">当前页面暂无对应说明。可用左侧评审页备用目录手动选择已收录页面。</p>
+          {{PAGE_ARTICLES}}
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const layout = document.documentElement.dataset.reviewLayout;
+    const frame = document.querySelector('#prototype-frame');
+    const currentPageName = document.querySelector('#current-page-name');
+    const unmappedNote = document.querySelector('#unmapped-note');
+    const buttons = [...document.querySelectorAll('nav button[data-page]')];
+    const panels = [...document.querySelectorAll('.note-panel[data-page]')];
+    let expectedFrameLoad = false;
+    let lastFrameUrl = '';
+
+    function clearNotes(message) {
+      buttons.forEach((button) => button.setAttribute('aria-current', 'false'));
+      panels.forEach((panel) => panel.classList.remove('active'));
+      currentPageName.textContent = '页面未识别';
+      unmappedNote.textContent = message;
+      unmappedNote.classList.add('active');
+    }
+
+    function getPanel(pageId) {
+      return panels.find((panel) => panel.dataset.page === pageId);
+    }
+
+    function activatePage(pageId, updateFrame = true) {
+      const panel = getPanel(pageId);
+      if (!panel) return;
+      const previousPanel = panels.find((item) => item.classList.contains('active'));
+
+      buttons.forEach((button) => {
+        const active = button.dataset.page === pageId;
+        button.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+      panels.forEach((item) => item.classList.toggle('active', item === panel));
+      unmappedNote.classList.remove('active');
+      currentPageName.textContent = panel.dataset.name || pageId;
+
+      if (updateFrame && panel.dataset.source) {
+        const previousSource = previousPanel?.dataset.source || frame.getAttribute('src');
+        const sameSource = previousSource &&
+          new URL(previousSource, document.baseURI).href ===
+          new URL(panel.dataset.source, document.baseURI).href;
+        // 同一个 HTML 的不同视图只切说明，不重新载入原型；再次点当前页则重载以便复位。
+        if (!sameSource || previousPanel === panel) {
+          expectedFrameLoad = true;
+          frame.src = panel.dataset.source;
+        }
+      }
+      history.replaceState(null, '', `#${pageId}`);
+    }
+
+    function syncNotesFromFrame() {
+      try {
+        const currentUrl = new URL(frame.contentWindow.location.href);
+        if (currentUrl.href === lastFrameUrl) return true;
+        lastFrameUrl = currentUrl.href;
+        const exactMatches = panels.filter((panel) => {
+          const sourceUrl = new URL(panel.dataset.source, document.baseURI);
+          return sourceUrl.href === currentUrl.href;
+        });
+        const pathMatches = panels.filter((panel) => {
+          const sourceUrl = new URL(panel.dataset.source, document.baseURI);
+          return sourceUrl.pathname === currentUrl.pathname;
+        });
+        const candidates = exactMatches.length ? exactMatches : pathMatches;
+        const activePanel = panels.find((panel) => panel.classList.contains('active'));
+        const matched = candidates.length === 1 ? candidates[0] :
+          candidates.includes(activePanel) ? activePanel : candidates[0];
+        if (matched) {
+          activatePage(matched.dataset.page, false);
+        } else clearNotes('当前原型页面未纳入本次评审范围，暂无对应说明。');
+        return true;
+      } catch (_) {
+        // file:// 或跨域限制下无法读取 iframe 地址。
+        return false;
+      }
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => activatePage(button.dataset.page));
+    });
+    frame.addEventListener('load', () => {
+      const readable = syncNotesFromFrame();
+      if (!readable && !expectedFrameLoad) {
+        clearNotes('原型已切换，但浏览器阻止读取页面地址。请在左侧备用目录手动选择当前页，或使用同源本地预览。');
+      }
+      expectedFrameLoad = false;
+      try {
+        frame.contentWindow.addEventListener('hashchange', syncNotesFromFrame);
+        frame.contentWindow.addEventListener('popstate', syncNotesFromFrame);
+      } catch (_) { /* 跨域或 file:// 下保留目录手动切换。 */ }
+    });
+    // pushState 不会触发 popstate；轮询地址变化，不读取或改写原型内容。
+    setInterval(syncNotesFromFrame, 300);
+
+    if (layout === 'parallel') {
+      const widthKey = 'html-prd-review-note-width';
+      try {
+        const savedWidth = localStorage.getItem(widthKey);
+        if (savedWidth && /^(30%|40%|50%|\d+px)$/.test(savedWidth)) {
+          document.documentElement.style.setProperty('--note-width', savedWidth);
+        }
+      } catch (_) { /* 本地文件可能禁用存储，宽度调节仍可用。 */ }
+      const saveWidth = (width) => {
+        document.documentElement.style.setProperty('--note-width', width);
+        try { localStorage.setItem(widthKey, width); } catch (_) { /* 忽略存储限制。 */ }
+      };
+      document.querySelectorAll('.width-preset').forEach((button) => {
+        button.addEventListener('click', () => saveWidth(button.dataset.noteWidth));
+      });
+      const resizer = document.querySelector('#resizer');
+      let dragging = false;
+      resizer.addEventListener('pointerdown', (event) => {
+        if (matchMedia('(max-width: 900px)').matches) return;
+        dragging = true;
+        resizer.setPointerCapture(event.pointerId);
+      });
+      resizer.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        const area = document.querySelector('.workspace').getBoundingClientRect();
+        const width = Math.max(320, Math.min(area.width - 420, area.right - event.clientX - 12));
+        document.documentElement.style.setProperty('--note-width', `${width}px`);
+      });
+      resizer.addEventListener('pointerup', () => {
+        if (!dragging) return;
+        dragging = false;
+        saveWidth(getComputedStyle(document.documentElement).getPropertyValue('--note-width').trim());
+      });
+      resizer.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        event.preventDefault();
+        const oldWidth = document.querySelector('.notes').getBoundingClientRect().width;
+        const areaWidth = document.querySelector('.workspace').getBoundingClientRect().width;
+        const nextWidth = Math.max(320, Math.min(areaWidth - 420, oldWidth + (event.key === 'ArrowLeft' ? 20 : -20)));
+        saveWidth(`${nextWidth}px`);
+      });
+    }
+
+    if (layout === 'drawer') {
+      const toggle = document.querySelector('#drawer-toggle');
+      const setOpen = (open) => {
+        document.documentElement.classList.toggle('drawer-open', open);
+        toggle.setAttribute('aria-expanded', String(open));
+      };
+      toggle.addEventListener('click', () => setOpen(!document.documentElement.classList.contains('drawer-open')));
+      document.querySelector('#drawer-close').addEventListener('click', () => setOpen(false));
+      document.querySelector('#backdrop').addEventListener('click', () => setOpen(false));
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setOpen(false); });
+    }
+
+    const requestedPage = location.hash.slice(1).toLowerCase();
+    const initialPage = buttons.some((button) => button.dataset.page === requestedPage) ?
+      requestedPage : buttons[0]?.dataset.page;
+    if (initialPage) activatePage(initialPage);
+  </script>
+</body>
+</html>
+
